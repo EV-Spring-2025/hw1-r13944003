@@ -1,5 +1,5 @@
 import os
-
+import sys
 import torch
 import wandb
 from omegaconf import OmegaConf
@@ -25,6 +25,8 @@ if __name__ == "__main__":
         data["alpha"],
         data["rgb"],
     )
+    points.visualize(50)
+
     raw_points = points.random_sample(config.num_points)
     model = GaussianModel(sh_degree=4, debug=False)
     model.create_from_pcd(pcd=raw_points)

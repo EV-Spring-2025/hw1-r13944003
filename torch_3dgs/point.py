@@ -1,6 +1,6 @@
 import random
 from typing import BinaryIO, Dict, List, Optional, Union
-
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -22,36 +22,52 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None):
     """
     Hs, Ws, intrinsics, c2ws = extract_camera_params(cameras)
     W, H = int(Ws[0].item()), int(Hs[0].item())
+    focalX, focalY = intrinsics[:, 0, 0], intrinsics[:, 1, 1]
     assert (depths.shape == alphas.shape)
     coords = []
-    rgbas = []
+
 
     # TODO: Compute ray origins and directions for each pixel
     # Hint: You need to use the camera intrinsics (intrinsics) and extrinsics (c2ws)
     # to convert pixel coordinates into world-space rays.
     # rays_o, rays_d = ......
+    Rs = c2ws[:, :3, :3]  # (N, 3, 3)
+    ts = c2ws[:, :3, 3]   # (N, 3)
+    rays_o = ts  # (N, 3)
+
+    u, v = torch.meshgrid(torch.arange(W), torch.arange(H), indexing='xy')
+    uv_h = torch.stack([u, v, torch.ones_like(u)], axis=-1).float().cuda()  # (H, W, 3)
+
+    K_inv = torch.linalg.inv(intrinsics[:, :3, :3])  # (N, 3, 3)
+    p_c = torch.einsum('nij,hwj->nhwi', K_inv, uv_h)  # (N, H, W, 3)
+    rays_d = torch.einsum('nij,nhwj->nhwi', Rs, p_c)  # (N, H, W, 3)
+    rays_d /= rays_d.norm(dim=-1, keepdim=True)
+
 
     # TODO: Compute 3D world coordinates using depth values
     # Hint: Use the ray equation: P = O + D * depth
     # P: 3D point, O: ray origin, D: ray direction, depth: depth value
     # pts = ......
+    pts = rays_o[:, None, None, :] + rays_d * depths[..., None]
 
     # TODO: Apply the alpha mask to filter valid points
     # Hint: Mask should be applied to both coordinates and RGB values (if provided)
     # mask = ......
     # coords = pts[mask].cpu().numpy()
+    mask = (alphas == 1)
+    coords = pts[mask].cpu().numpy()
 
     if rgbs is not None:
         channels = dict(
-            R=rgbas[..., 0],
-            G=rgbas[..., 1],
-            B=rgbas[..., 2],
-            A=rgbas[..., 3],
+            R=rgbs[..., 0][mask].cpu().numpy(),
+            G=rgbs[..., 1][mask].cpu().numpy(),
+            B=rgbs[..., 2][mask].cpu().numpy(),
+            A=alphas[mask].cpu().numpy(),
         )
     else:
         channels = {}
-
     point_cloud = PointCloud(coords, channels)
+    
     return point_cloud
 
 
@@ -203,3 +219,18 @@ class PointCloud:
                 k: np.concatenate([v, other.channels[k]], axis=0) for k, v in self.channels.items()
             },
         )
+        
+    def visualize(self, step_size=50):
+        coords = self.coords  # (N, 3)
+        x, y, z = coords[::step_size, 0], coords[::step_size, 1], coords[::step_size, 2]
+        
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        channels = {k:v for k, v in self.channels.items()}
+        colors = np.stack([channels['R'], channels['G'], channels['B'], channels['A']], axis=1)[::step_size, :]
+        ax.scatter(x, y, z, c=colors, s=1)
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        ax.set_title("3D Point Cloud Visualization")
+        plt.show()
