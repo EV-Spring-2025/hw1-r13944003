@@ -3,13 +3,13 @@ name: 3dgs
 data_folder: ../data
 resize_scale: 0.2
 num_steps: 5000
-num_points: 2048  # 2 ** 14
+num_points: 20000  # 2 ** 14
 l1_weight: 0.8
 dssim_weight: 0.4
-depth_weight: 0.0
-lr: 1e-3
+depth_weight: 0.1
+lr: 5e-4
 eval_interval: 500
-output_folder: outputs
+output_folder: outputs2
 device: cuda
 render:
-  tile_size: 16
+  tile_size: 8

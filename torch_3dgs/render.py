@@ -100,7 +100,6 @@ def build_covariance_2d(
     return cov2d[:, :2, :2] + torch.eye(2, device=cov2d.device)[None] * 0.3
 
 
-@torch.no_grad()
 def get_radius(cov2d: torch.Tensor) -> torch.Tensor:
     det = cov2d[:, 0, 0] * cov2d[:, 1, 1] - cov2d[:, 0, 1] * cov2d[:, 1, 0]
     mid = 0.5 * (cov2d[:, 0, 0] + cov2d[:, 1, 1])
@@ -147,6 +146,7 @@ class GaussRenderer(nn.Module):
 
     def render(self, camera, means2D, cov2d, color, opacity, depths):
         radii = get_radius(cov2d)
+        
         rect_min, rect_max = get_rect(means2D, radii, camera.image_width, camera.image_height)
 
         if self.pix_coord is None:
@@ -178,7 +178,7 @@ class GaussRenderer(nn.Module):
                 # TODO: Sort Gaussians by depth.
                 # Hint: Sorting should be based on the depth values of Gaussians.
                 # sorted_depths, index = ...
-                sorted_depths, index = torch.sort(depths[in_mask], descending=True)
+                sorted_depths, index = torch.sort(depths[in_mask])
     
                 # TODO: Extract relevant Gaussian properties for the tile.
                 # Hint: Use the computed index to rearrange the following tensors.
@@ -239,7 +239,7 @@ class GaussRenderer(nn.Module):
             "depth": self.render_depth,
             "alpha": self.render_alpha,
             "visibility_filter": radii > 0,
-            "radii": radii
+            "radii": radii,
         }
 
     def forward(self, camera, pc):

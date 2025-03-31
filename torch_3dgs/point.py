@@ -22,7 +22,6 @@ def get_point_clouds(cameras, depths, alphas, rgbs=None):
     """
     Hs, Ws, intrinsics, c2ws = extract_camera_params(cameras)
     W, H = int(Ws[0].item()), int(Hs[0].item())
-    focalX, focalY = intrinsics[:, 0, 0], intrinsics[:, 1, 1]
     assert (depths.shape == alphas.shape)
     coords = []
 

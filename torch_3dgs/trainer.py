@@ -44,14 +44,15 @@ class Trainer:
         self.num_steps = num_steps
         self.eval_interval = eval_interval
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [200, 500, 1000], gamma=0.5)
         self.gauss_render = GaussRenderer(**render_kwargs)
 
         self.logger = logger
         os.makedirs(results_folder, exist_ok=True)
         self.results_folder = Path(results_folder)
 
-    def train_step(self) -> Dict[str, torch.Tensor]:
+    def train_step(self, step) -> Dict[str, torch.Tensor]:
         self.optimizer.zero_grad()
         idx = np.random.choice(len(self.data["camera"]))
         camera = to_viewpoint_camera(self.data["camera"][idx])
@@ -69,7 +70,8 @@ class Trainer:
         # TODO: Compute DSSIM Loss
         # Hint: DSSIM loss is derived from SSIM, a perceptual loss that compares structure, contrast, and luminance.
         # dssim_loss = ...
-        dssim_loss = calc_ssim(rgb.permute(2, 0, 1), output['render'].permute(2, 0, 1))
+        SSIM = calc_ssim(rgb.permute(2, 0, 1), output['render'].permute(2, 0, 1))
+        dssim_loss = 0.5 * (1-SSIM)
     
         # TODO: Compute Depth Loss
         # Hint: Compute depth error only where valid (using the mask).
@@ -83,6 +85,7 @@ class Trainer:
     
         total_loss.backward()
         self.optimizer.step()
+        self.scheduler.step()
     
         psnr = calc_psnr(output["render"], rgb)
     
@@ -127,7 +130,7 @@ class Trainer:
         self.eval_step(0)
         pbar = trange(1, self.num_steps + 1)
         for step in pbar:
-            outputs = self.train_step()
+            outputs = self.train_step(step)
             results = {name: round(value.item(), 3) for name, value in outputs.items()}
             pbar.set_postfix(results)
 
