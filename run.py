@@ -16,7 +16,7 @@ if __name__ == "__main__":
     os.makedirs(config.output_folder, exist_ok=True)
     device = torch.device(config.device)
 
-    data = read_data(config.data_folder, resize_scale=config.resize_scale)
+    data = read_data(config.data_folder, config.resize_scale, config.image_number)
     data = dict_to_device(data, device)
 
     points = get_point_clouds(
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         data["alpha"],
         data["rgb"],
     )
-    #points.visualize(50)
+    points.visualize(50)
 
     raw_points = points.random_sample(config.num_points)
     model = GaussianModel(sh_degree=4, debug=False)
@@ -43,6 +43,7 @@ if __name__ == "__main__":
         num_steps=config.num_steps,
         eval_interval=config.eval_interval,
         l1_weight=config.l1_weight,
+        l2_weight=config.l2_weight,
         dssim_weight=config.dssim_weight,
         depth_weight=config.depth_weight,
         lr=config.lr,

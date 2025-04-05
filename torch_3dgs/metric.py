@@ -12,6 +12,10 @@ def calc_mse(x: torch.Tensor, y: torch.Tensor, mask: torch.Tensor = None) -> tor
         )
     return ((x - y) ** 2).mean()
 
+def calc_l2_loss(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    sum_square = ((x-y)**2).sum()
+    L = x.shape[0]
+    return sum_square**(1/2) / L
 
 def calc_psnr(x: torch.Tensor, y: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
     return -10 * torch.log10(calc_mse(x, y, mask) + EPSILON)

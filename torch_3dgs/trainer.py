@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from tqdm import trange
 
 from .camera import to_viewpoint_camera
-from .metric import calc_psnr, calc_ssim
+from .metric import calc_psnr, calc_ssim, calc_l2_loss
 from .render import GaussRenderer
 
 
@@ -22,6 +22,7 @@ class Trainer:
         model: nn.Module,
         device: torch.device = torch.device("cpu"),
         l1_weight: float = 1.,
+        l2_weight: float = 1.,
         dssim_weight: float = 1.,
         depth_weight: float = 1.,
         lr: float = 1e-3,
@@ -37,6 +38,7 @@ class Trainer:
         self.device = device
 
         self.l1_weight = l1_weight
+        self.l2_weight = l2_weight
         self.dssim_weight = dssim_weight
         self.depth_weight = depth_weight
         self.lr = lr
@@ -44,8 +46,8 @@ class Trainer:
         self.num_steps = num_steps
         self.eval_interval = eval_interval
 
-        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr)
-        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [200, 500, 1000], gamma=0.5)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, [200, 400, 800, 1200, 1600, 2000, 2400], gamma=0.5)
         self.gauss_render = GaussRenderer(**render_kwargs)
 
         self.logger = logger
@@ -66,6 +68,7 @@ class Trainer:
         # Hint: L1 loss measures absolute pixel-wise differences between the rendered image and ground truth.
         # l1_loss = ...
         l1_loss = F.l1_loss(rgb, output['render'])
+        l2_loss = calc_l2_loss(rgb, output['render'])
         
         # TODO: Compute DSSIM Loss
         # Hint: DSSIM loss is derived from SSIM, a perceptual loss that compares structure, contrast, and luminance.
@@ -81,7 +84,7 @@ class Trainer:
         # TODO: Compute Total Loss
         # Hint: Combine all losses using respective weighting coefficients.
         # total_loss = ...
-        total_loss = self.l1_weight * l1_loss + self.dssim_weight * dssim_loss + self.depth_weight * depth_loss
+        total_loss = self.l1_weight * l1_loss + self.l2_weight * l2_loss + self.dssim_weight * dssim_loss + self.depth_weight * depth_loss
     
         total_loss.backward()
         self.optimizer.step()
@@ -92,6 +95,7 @@ class Trainer:
         return {
             "total_loss": total_loss,
             "l1_loss": l1_loss,
+            "l2_loss": l2_loss,
             "dssim_loss": dssim_loss,
             "depth_loss": depth_loss,
             "psnr": psnr,
@@ -116,6 +120,7 @@ class Trainer:
             final_image = np.concatenate([rgb_img, depth_img], axis=0)
             frames.append((final_image * 255).clip(0, 255).astype(np.uint8))
 
+
         output_path = os.path.join(self.results_folder, f"video_{step}.mp4")
         self.save_video(frames, output_path, fps=5)
 
@@ -129,11 +134,13 @@ class Trainer:
     def train(self) -> None:
         self.eval_step(0)
         pbar = trange(1, self.num_steps + 1)
+
         for step in pbar:
             outputs = self.train_step(step)
             results = {name: round(value.item(), 3) for name, value in outputs.items()}
             pbar.set_postfix(results)
 
+                
             if step % self.eval_interval == 0:
                 self.eval_step(step)
                 self.save(step)

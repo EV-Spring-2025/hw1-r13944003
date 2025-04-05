@@ -66,10 +66,10 @@ class GaussianModel(nn.Module):
         dist2 = torch.clamp_min(compute_mean_knn_dist(coords, k=3), 1e-7)
         scale = torch.log(torch.sqrt(dist2)).unsqueeze(-1).repeat(1, 3)
 
-        rotation = torch.zeros((num_points, 4), device="cuda")
+        rotation = torch.zeros((num_points, 4), dtype=torch.float32, device="cuda")
         rotation[:, 0] = 1.0
 
-        opacity = self.opacity_inverse(0.1 * torch.ones((num_points, 1), device="cuda"))
+        opacity = self.opacity_inverse(0.1 * torch.ones((num_points, 1), dtype=torch.float32, device="cuda"))
 
         self._xyz = nn.Parameter(coords.requires_grad_(True))
         self._features_dc = nn.Parameter(sh_features[:, :, :1].transpose(1, 2).contiguous().requires_grad_(True))
@@ -77,7 +77,7 @@ class GaussianModel(nn.Module):
         self._scaling = nn.Parameter(scale.requires_grad_(True))
         self._rotation = nn.Parameter(rotation.requires_grad_(True))
         self._opacity = nn.Parameter(opacity.requires_grad_(True))
-        self.max_radii2D = torch.zeros((num_points,), device="cuda")
+        self.max_radii2D = torch.zeros((num_points,), dtype=torch.float32, device="cuda")
 
         return self
 

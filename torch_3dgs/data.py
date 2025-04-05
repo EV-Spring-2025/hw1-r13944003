@@ -1,5 +1,6 @@
 import os
 import json
+import random
 from typing import Dict
 
 import imageio
@@ -8,12 +9,17 @@ import torch.nn.functional as F
 from einops import rearrange
 
 
-def read_data(folder: str, resize_scale: float = 1.0) -> Dict[str, torch.Tensor]:
+def read_data(folder: str, resize_scale: float = 1.0, image_number: int = 200) -> Dict[str, torch.Tensor]:
     camera = read_camera(folder)
+    
+    
+    rgb_files, poses, intrisics = camera["rgb_files"], camera["poses"], camera["intrinsics"]
+    idx = random.sample(range(len(rgbs)), image_number)
+    rgb_files, poses, intrisics = rgb_files[idx], poses[idx], intrisics[idx]
 
     all_rgbs, all_depths, all_alphas, all_cameras = zip(*[
         read_image(rgb_file, pose, intrinsic, camera["max_depth"], resize_scale)
-        for rgb_file, pose, intrinsic in zip(camera["rgb_files"], camera["poses"], camera["intrinsics"])
+        for rgb_file, pose, intrinsic in zip(rgb_files, poses, intrisics)
     ])
 
     rgbs = torch.stack(all_rgbs)
